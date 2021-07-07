@@ -1,4 +1,5 @@
 import dash
+import dash_auth
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
@@ -24,6 +25,7 @@ import math
 import random
 from datetime import timedelta
 import warnings
+
 warnings.filterwarnings('ignore')
 #color palette
 cnf='#393e46'
@@ -34,23 +36,7 @@ import plotly.express as px
 
 #definition des controls
 # the style arguments for the sidebar.
-df=pd.read_csv("covid_19_data_cleaned.csv",parse_dates=['Date'])
-confirmed=df.groupby('Date').sum()['Confirmed'].reset_index()
-recovered=df.groupby('Date').sum()['Recovered'].reset_index()
-deaths=df.groupby('Date').sum()['Deaths'].reset_index()
-temp=df.groupby('Date')['Confirmed','Deaths','Recovered'].sum().reset_index()
-temp=temp.melt(id_vars='Date',value_vars=['Deaths','Confirmed','Recovered'],var_name="Case",value_name='Count')
-#create figure 
-fig=go.Figure()
-temp=df[df['Date']==max(df['Date'])]
-m=folium.Map(location=[0,0],tiles='cartodbpositron',min_zoom=1,max_zoom=4,zoom_start=1)
-for i in range(0,len(temp)):
-    folium.Circle(location=[temp.iloc[i]['Lat']  ,temp.iloc[i]['Long']],color='crimson',fill='crimson'  ,
-                   tooltip='<li><bold>Country:'+str(temp.iloc[i]['Country'])+
-                    '<li><bold>Province:'+str(temp.iloc[i]['Province/State'])+
-                    '<li><bold>Confirmed:'+str(temp.iloc[i]['Confirmed'])+
-                    '<li><bold>Deaths:'+str(temp.iloc[i]['Deaths']),radius=int(temp.iloc[i]['Confirmed']**0.5)
-                   ).add_to(m)
+
 # fig.add_trace(go.Scatter(x=confirmed['Date'],y=confirmed['Confirmed'] ,mode='lines',name="confirmed",line=dict(color="Orange",width=4)))
 # fig.add_trace(go.Scatter(x=recovered['Date'],y=recovered['Recovered'] ,mode='lines',name="Recovered",line=dict(color="Green",width=4)))
 # fig.add_trace(go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=dict(color="Red",width=4)))
@@ -60,11 +46,38 @@ for i in range(0,len(temp)):
 kobdata=GetKoboData()
 labeld_results=kobdata.getAllData()
 print(labeld_results)
-test=df1=kobdata.getDapsDataFrame(labeld_results)
+df1=kobdata.getDapsDataFrame(labeld_results)
+df1.rename(columns={'Quel est le statut de votre structure  ?':'statut'}, inplace=True)
+
+df_medaille=df1.groupby(['Quel est le nom de votre structure','statut'])[["Combien de médailles d'or avez-vous gagné niveau international","Combien de médailles d'or avez-vous gagné par les femmes niveau international","Combien de médailles d'or avez-vous gagné par les hommes niveau international"]].sum().reset_index()
+
+count_statut=df1['statut'].value_counts(sort=True, ascending=True)
 test1=df1['Le nombre de femmes actives élèves arbitres'].sum()
 nbre=int(test1[-1])
+df1.rename(columns={"Date d’interview(jj/mm/aa) ":'Date'}, inplace=True)
+df1.rename(columns={'Numero questionnaire ':'nombre enquetes'}, inplace=True)
+
+nbr_enquete_par_jour=df1.groupby("Date").count()['nombre enquetes'].reset_index()
+nbr_enquete_par_jour[['Date','nombre enquetes']]
+
+fig2 = px.bar(nbr_enquete_par_jour, x='Date', y='nombre enquetes',color='nombre enquetes',title="Nombre d'enquetes par jour")
+
+fig3=go.Figure()
+
+fig3.add_trace(go.Scatter(x=df_medaille['Quel est le nom de votre structure'],y=df_medaille["Combien de médailles d'or avez-vous gagné niveau international"] ,mode='lines',name="Combien de médailles d'or avez-vous gagné niveau international",line=dict(color="Orange",width=4))),
+fig3.add_trace(go.Scatter(x=df_medaille['Quel est le nom de votre structure'],y=df_medaille["Combien de médailles d'or avez-vous gagné par les femmes niveau international"] ,mode='lines',name="Combien de médailles d'or avez-vous gagné par les femmes niveau international",line=dict(color="Green",width=4))),
+fig3.add_trace(go.Scatter(x=df_medaille['Quel est le nom de votre structure'],y=df_medaille["Combien de médailles d'or avez-vous gagné par les hommes niveau international"] ,mode='lines',name="Combien de médailles d'or avez-vous gagné par les hommes niveau international",line=dict(color="Red",width=4))),
+fig3.update_layout(title='Nombre de medailles gagné par les structures ' ,xaxis_tickfont_size=14,yaxis=dict(title='Nombre de medailles  '))   
 section =df1[['Quel est le nom de votre structure','La date de création de votre structure (jj/mm/aa)',"Quelle est la durée de votre mandant (nombre d'années) "]]
-fig = px.bar(df1, x="Quel est le nom de votre structure", y="Quel est le nombre de membres dans le comité directeur ?", color="La date de création de votre structure (jj/mm/aa)", barmode="group")
+fig = px.bar(df1, x="Quel est le nom de votre structure", y="Quel est le nombre de membres dans le comité directeur ?", color="Quel est le nom de votre structure", barmode="group",width=800,title='Nombre de membres dans lee comite directeur')
+
+count_locaux=df1['Votre structure dispose-t-elle de locaux'].value_counts(sort=True, ascending=True).reset_index()
+fig4 = px.pie(count_locaux, values='Votre structure dispose-t-elle de locaux',names='index',title='Locaux')
+
+
+
+count_sexe=df1['Etes vous'].value_counts(sort=True, ascending=True).reset_index()
+fig5 = px.pie(count_sexe, values='Etes vous',names='index',title='Repartition des Sexes')
 SIDEBAR_STYLE = {
     'position': 'fixed',
     'top': 0,
@@ -223,15 +236,15 @@ content_first_row = dbc.Row([
                         'color': 'white'}
                     ),
  
-            html.P(f"{len(df1.index):,.0f}",
+            html.P(f"{count_statut['FEDERATION']:,.0f}",
                    style={
                        'textAlign': 'center',
                        'color': 'orange',
                        'fontSize': 40}
                    ),
  
-            html.P('new:  ' + f"{70:,.0f} "
-                   + ' (' + str(round(56,344)) + '%)',
+            html.P(' ' + f"{(count_statut['FEDERATION']/len(df1.index)*100):,.0f} "
+                   + '%',
                    style={
                        'textAlign': 'center',
                        'color': 'orange',
@@ -268,22 +281,22 @@ content_first_row = dbc.Row([
         md=3 
     ),
      dbc.Col(
-       html.Div([
-            html.H6(children='Global Cases',
+      html.Div([
+            html.H6(children='Nombre de CNP',
                     style={
                         'textAlign': 'center',
                         'color': 'white'}
                     ),
  
-            html.P(f"{69:,.0f}",
+            html.P(f"{count_statut['CNP']:,.0f}",
                    style={
                        'textAlign': 'center',
                        'color': 'orange',
                        'fontSize': 40}
                    ),
  
-            html.P('new:  ' + f"{70:,.0f} "
-                   + ' (' + str(round(56,344)) + '%)',
+            html.P(' ' + f"{(count_statut['CNP']/len(df1.index)*100):,.0f} "
+                   + '%',
                    style={
                        'textAlign': 'center',
                        'color': 'orange',
@@ -295,21 +308,21 @@ content_first_row = dbc.Row([
     ),
      dbc.Col(
        html.Div([
-            html.H6(children='Global Cases',
+            html.H6(children='Nombre de CNG',
                     style={
                         'textAlign': 'center',
                         'color': 'white'}
                     ),
  
-            html.P(f"{69:,.0f}",
+            html.P(f"{count_statut['CNG']:,.0f}",
                    style={
                        'textAlign': 'center',
                        'color': 'orange',
                        'fontSize': 40}
                    ),
  
-            html.P('new:  ' + f"{70:,.0f} "
-                   + ' (' + str(round(56,344)) + '%)',
+            html.P(' ' + f"{(count_statut['CNG']/len(df1.index)*100):,.0f} "
+                   + '%',
                    style={
                        'textAlign': 'center',
                        'color': 'orange',
@@ -326,18 +339,13 @@ content_second_row = dbc.Row(
     [
         dbc.Col(
             dcc.Graph(id='graph_1',
-            figure ={'data':[
-go.Scatter(x=confirmed['Date'],y=confirmed['Confirmed'] ,mode='lines',name="confirmed",line=dict(color="Orange",width=4)),
-go.Scatter(x=recovered['Date'],y=recovered['Recovered'] ,mode='lines',name="Recovered",line=dict(color="Green",width=4)),
-go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=dict(color="Red",width=4))
-#fig.update_layout(title='wordwide covid-19 caes ' ,xaxis_tickfont_size=14,yaxis=dict(title='Number of cases ')),
-            ]   
-            }), md=4
+            figure =fig4
+            ), md=4
         ),
         dbc.Col(
             dcc.Graph(id='graph_2',
             
-  figure=fig
+  figure=fig2
 
 
 #              figure ={'data':[
@@ -354,13 +362,7 @@ go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=
             ), md=4
         ),
         dbc.Col(
-            dcc.Graph(id='graph_3', figure ={'data':[
-go.Scatter(x=confirmed['Date'],y=confirmed['Confirmed'] ,mode='lines',name="confirmed",line=dict(color="Orange",width=4)),
-go.Scatter(x=recovered['Date'],y=recovered['Recovered'] ,mode='lines',name="Recovered",line=dict(color="Green",width=4)),
-go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=dict(color="Red",width=4))
-#fig.update_layout(title='wordwide covid-19 caes ' ,xaxis_tickfont_size=14,yaxis=dict(title='Number of cases ')),
-            ]   
-            }), md=4
+            dcc.Graph(id='graph_3',figure=fig5), md=4
         )
     ]
 )
@@ -368,12 +370,15 @@ go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=
 content_third_row = dbc.Row(
     [
         dbc.Col(
-            dcc.Graph(id='graph_4',figure ={'data':[
-go.Scatter(x=confirmed['Date'],y=confirmed['Confirmed'] ,mode='lines',name="confirmed",line=dict(color="Orange",width=4)),
-go.Scatter(x=recovered['Date'],y=recovered['Recovered'] ,mode='lines',name="Recovered",line=dict(color="Green",width=4)),
-go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=dict(color="Red",width=4))
-#fig.update_layout(title='wordwide covid-19 caes ' ,xaxis_tickfont_size=14,yaxis=dict(title='Number of cases ')),
-            ] }  ), md=12,
+            dcc.Graph(id='graph_4',
+            figure =fig
+#             {'data':[
+# go.Scatter(x=confirmed['Date'],y=confirmed['Confirmed'] ,mode='lines',name="confirmed",line=dict(color="Orange",width=4)),
+# go.Scatter(x=recovered['Date'],y=recovered['Recovered'] ,mode='lines',name="Recovered",line=dict(color="Green",width=4)),
+# go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=dict(color="Red",width=4))
+# #fig.update_layout(title='wordwide covid-19 caes ' ,xaxis_tickfont_size=14,yaxis=dict(title='Number of cases ')),
+#             ] } 
+             ), md=12,
         )
     ]
 )
@@ -381,11 +386,10 @@ go.Scatter(x=deaths['Date'],y=deaths['Deaths'] ,mode='lines',name="Deaths",line=
 content_fourth_row = dbc.Row(
     [
         dbc.Col(
-            dcc.Graph(id='graph_5'), md=6
+            dcc.Graph(id='graph_5',figure=fig3), md=12
         ),
-        dbc.Col(
-            dcc.Graph(id='graph_6'), md=6
-        )
+        
+        
     ]
 )
 content = html.Div(id="page-content",
@@ -396,8 +400,13 @@ content = html.Div(id="page-content",
 
 app = dash.Dash(__name__,external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = html.Div([ dcc.Location(id="url"),sidebar, content])
-
-
+VALID_USERNAME_PASSWORD_PAIRS = [
+    ['hello', 'world']]
+auth = dash_auth.BasicAuth(
+    app,
+    VALID_USERNAME_PASSWORD_PAIRS
+)
+server=app.server
 #####calback for grphe 1
 
 # @app.callback(
@@ -460,7 +469,8 @@ def render_page_content(pathname):
         content_first_row,
          content_second_row,
         content_third_row,
-        # content_fourth_row
+
+        content_fourth_row
     ],
         )
     elif pathname == "/page-1":
@@ -507,4 +517,4 @@ def render_page_content(pathname):
     )
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=True,port=8040)
